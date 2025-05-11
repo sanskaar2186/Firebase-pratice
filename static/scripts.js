@@ -13,6 +13,47 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 
+// Google Auth Provider
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+// Handle Google Sign In/Up
+async function handleGoogleAuth() {
+    try {
+        console.log("Starting Google authentication");
+        const result = await auth.signInWithPopup(googleProvider);
+        console.log("Google auth successful:", result);
+        
+        const token = await result.user.getIdToken();
+        console.log("Got ID token, sending to backend");
+        
+        // Send token to backend
+        const response = await fetch('/api/verify-token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ token })
+        });
+        
+        console.log("Backend response:", response.status);
+        if (response.ok) {
+            console.log("Google auth successful, redirecting to dashboard");
+            window.location.href = '/dashboard';
+        } else {
+            const errorData = await response.json();
+            console.error("Backend error:", errorData);
+            alert("Authentication failed: " + (errorData.error || "Unknown error"));
+        }
+    } catch (error) {
+        console.error("Google auth error details:", error);
+        alert("Google authentication failed: " + error.message);
+    }
+}
+
+// Add Google auth handlers
+document.getElementById('googleLogin')?.addEventListener('click', handleGoogleAuth);
+document.getElementById('googleRegister')?.addEventListener('click', handleGoogleAuth);
+
 // Login function
 document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
