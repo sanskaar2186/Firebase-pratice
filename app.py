@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from functools import wraps
 import firebase_admin
-from firebase_admin import credentials, auth, firestore, exceptions
+from firebase_admin import credentials, auth, firestore, exceptions, storage
 import os
 from datetime import datetime
+from werkzeug.security import generate_password_hash
+from werkzeug.utils import secure_filename
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -11,8 +13,23 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or 'your-secret-key-here'
 
 # Initialize Firebase Admin SDK
 cred = credentials.Certificate('firebase-config.json')
-firebase_admin.initialize_app(cred)
+firebase_admin.initialize_app(cred, {
+    'storageBucket': 'fir-pra-bec88.firebasestorage.app'
+})
+
+# Initialize Firestore and Storage
 db = firestore.client()
+bucket = storage.bucket()
+
+# Configure CORS for the bucket
+cors_configuration = {
+    'origin': ['*'],
+    'method': ['GET', 'POST', 'PUT', 'DELETE'],
+    'responseHeader': ['Content-Type', 'Access-Control-Allow-Origin'],
+    'maxAgeSeconds': 3600
+}
+bucket.cors = [cors_configuration]
+bucket.update()
 
 # Helper Functions
 def login_required(f):
@@ -25,9 +42,25 @@ def login_required(f):
     return decorated_function
 
 def get_user_data(uid):
-    user_ref = db.collection('users').document(uid)
-    doc = user_ref.get()
-    return doc.to_dict() if doc.exists else None
+    try:
+        user_ref = db.collection('users').document(uid)
+        doc = user_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+    except Exception as e:
+        print(f"Error fetching user data: {str(e)}")
+        return None
+
+def update_user_session(user_data):
+    session['user'] = {
+        'uid': user_data.get('uid'),
+        'email': user_data.get('email'),
+        'name': user_data.get('name'),
+        'photo_url': user_data.get('photo_url'),
+        'email_verified': user_data.get('email_verified', False),
+        'last_login': datetime.now().isoformat()
+    }
 
 # Routes
 @app.route('/')
@@ -81,6 +114,143 @@ def login():
             return redirect(url_for('login'))
     
     return render_template('login.html')
+
+@app.route('/profile')
+@login_required
+def profile():
+    try:
+        user_data = get_user_data(session['user']['uid'])
+        if not user_data:
+            flash('User data not found', 'warning')
+            return redirect(url_for('dashboard'))
+        
+        return render_template('profile.html', 
+                            user=session['user'],
+                            user_data=user_data)
+    except Exception as e:
+        flash(f'Error loading profile: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/update-profile', methods=['POST'])
+@login_required
+def update_profile():
+    try:
+        user_ref = db.collection('users').document(session['user']['uid'])
+        updates = {
+            'name': request.form.get('name'),
+            'updated_at': firestore.SERVER_TIMESTAMP
+        }
+        
+        # Handle profile picture upload
+        if 'profile_pic' in request.files:
+            file = request.files['profile_pic']
+            if file and file.filename:
+                try:
+                    print(f"Processing file: {file.filename}")  # Debug log
+                    
+                    # Validate file type
+                    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+                    file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+                    print(f"File extension: {file_ext}")  # Debug log
+                    
+                    if file_ext not in allowed_extensions:
+                        flash('Invalid file type. Please upload a PNG, JPG, JPEG, or GIF file.', 'danger')
+                        return redirect(url_for('profile'))
+                    
+                    # Create a temporary file
+                    import tempfile
+                    import os
+                    
+                    # Create temp directory if it doesn't exist
+                    temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp')
+                    os.makedirs(temp_dir, exist_ok=True)
+                    print(f"Temp directory: {temp_dir}")  # Debug log
+                    
+                    # Save file to temp directory
+                    temp_path = os.path.join(temp_dir, secure_filename(file.filename))
+                    file.save(temp_path)
+                    print(f"File saved to temp path: {temp_path}")  # Debug log
+                    
+                    try:
+                        # Generate a unique filename for storage
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        storage_filename = f"{session['user']['uid']}_{timestamp}_{secure_filename(file.filename)}"
+                        blob_path = f"profile_pics/{storage_filename}"
+                        print(f"Storage path: {blob_path}")  # Debug log
+                        
+                        # Upload to Firebase Storage
+                        blob = bucket.blob(blob_path)
+                        print("Blob created")  # Debug log
+                        
+                        # Set content type
+                        content_type = f'image/{file_ext}' if file_ext != 'jpg' else 'image/jpeg'
+                        blob.content_type = content_type
+                        print(f"Content type set: {content_type}")  # Debug log
+                        
+                        # Upload the file
+                        blob.upload_from_filename(temp_path)
+                        print("File uploaded successfully")  # Debug log
+                        
+                        # Make public
+                        blob.make_public()
+                        print("Blob made public")  # Debug log
+                        
+                        # Get public URL
+                        public_url = blob.public_url
+                        print(f"Public URL: {public_url}")  # Debug log
+                        updates['photo_url'] = public_url
+                        
+                    except Exception as storage_error:
+                        print(f"Storage error: {str(storage_error)}")  # Debug log
+                        print(f"Error type: {type(storage_error)}")  # Debug log
+                        raise storage_error
+                    finally:
+                        # Clean up temp file
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+                            print("Temp file cleaned up")  # Debug log
+                    
+                except Exception as upload_error:
+                    print(f"Upload error: {str(upload_error)}")  # Debug log
+                    print(f"Error type: {type(upload_error)}")  # Debug log
+                    flash('Error uploading profile picture. Please try again.', 'danger')
+                    return redirect(url_for('profile'))
+        
+        # Remove None values
+        updates = {k: v for k, v in updates.items() if v is not None}
+        
+        if updates:
+            try:
+                user_ref.update(updates)
+                # Update session
+                user_data = get_user_data(session['user']['uid'])
+                update_user_session(user_data)
+                flash('Profile updated successfully!', 'success')
+            except Exception as update_error:
+                print(f"Update error: {str(update_error)}")  # Debug log
+                flash('Error updating profile. Please try again.', 'danger')
+        else:
+            flash('No changes to update', 'info')
+            
+        return redirect(url_for('profile'))
+    except Exception as e:
+        print(f"General error: {str(e)}")  # Debug log
+        print(f"Error type: {type(e)}")  # Debug log
+        flash(f'Error updating profile: {str(e)}', 'danger')
+        return redirect(url_for('profile'))
+
+@app.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data:
+            return jsonify({'error': 'Email is required'}), 400
+            
+        email = data['email']
+        auth.generate_password_reset_link(email)
+        return jsonify({'success': True, 'message': 'Password reset link sent to your email'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():

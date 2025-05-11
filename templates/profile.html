@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="profile-container">
+    <h1>Profile Settings</h1>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('update_profile') }}" class="profile-form" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" value="{{ user_data.name or '' }}" placeholder="Enter your full name">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" value="{{ user.email }}" readonly>
+            <small class="text-muted">Email cannot be changed</small>
+        </div>
+
+        <div class="form-group">
+            <label for="profile_pic">Profile Picture</label>
+            <div class="file-upload-container">
+                <div class="current-profile-pic">
+                    {% if user_data.photo_url %}
+                        <img src="{{ user_data.photo_url }}" alt="Current profile picture" class="profile-preview">
+                    {% else %}
+                        <div class="profile-pic-initial">{{ user.email[0]|upper }}</div>
+                    {% endif %}
+                </div>
+                <div class="file-upload">
+                    <input type="file" id="profile_pic" name="profile_pic" accept="image/*" class="file-input">
+                    <label for="profile_pic" class="file-label">
+                        <i class="fas fa-upload"></i>
+                        Choose a file
+                    </label>
+                    <span class="file-name">No file chosen</span>
+                </div>
+            </div>
+            <small class="text-muted">Upload a new profile picture (max 5MB)</small>
+        </div>
+
+        <div class="profile-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                Save Changes
+            </button>
+            
+            <button type="button" class="btn btn-secondary" onclick="requestPasswordReset()">
+                <i class="fas fa-key"></i>
+                Change Password
+            </button>
+            
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>
+                Back to Dashboard
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+async function requestPasswordReset() {
+    try {
+        const response = await fetch('/request-password-reset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: '{{ user.email }}'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert('Password reset link has been sent to your email');
+        } else {
+            alert(data.error || 'Failed to send password reset link');
+        }
+    } catch (error) {
+        alert('An error occurred. Please try again.');
+    }
+}
+
+// File input handling
+document.getElementById('profile_pic').addEventListener('change', function(e) {
+    const fileName = e.target.files[0]?.name || 'No file chosen';
+    document.querySelector('.file-name').textContent = fileName;
+    
+    // Preview the image
+    if (e.target.files && e.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.querySelector('.profile-preview');
+            if (preview) {
+                preview.src = e.target.result;
+            } else {
+                const container = document.querySelector('.current-profile-pic');
+                container.innerHTML = `<img src="${e.target.result}" alt="Profile preview" class="profile-preview">`;
+            }
+        }
+        reader.readAsDataURL(e.target.files[0]);
+    }
+});
+</script>
+{% endblock %}

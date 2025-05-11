@@ -2,44 +2,25 @@
 
 {% block content %}
 <div class="dashboard-container">
+    <!-- Add this profile header section -->
     <header class="dashboard-header">
-        <h1>Welcome to Your Dashboard</h1>
+        <div class="user-profile-summary">
+            {% if user_data.photo_url %}
+                <img src="{{ user_data.photo_url }}" alt="Profile Photo" class="profile-pic">
+            {% else %}
+                <div class="profile-pic-initial">{{ user.email[0]|upper }}</div>
+            {% endif %}
+            <div>
+                <h2>Welcome, {{ user_data.name or user.email }}!</h2>
+                <a href="/profile" class="profile-link">View Profile →</a>
+            </div>
+        </div>
         <a href="/logout" class="btn btn-logout">Logout</a>
     </header>
-    
-    <div class="user-info">
-        <h2>Your Account Information</h2>
-        <div class="info-card">
-            <div class="info-item">
-                <span class="info-label">User ID:</span>
-                <span class="info-value">{{ session['user_id'] }}</span>
-            </div>
-            <!-- More user info can be added here -->
-        </div>
-    </div>
-    
-    <div class="dashboard-actions">
-        <h2>Quick Actions</h2>
-        <div class="action-buttons">
-            <button class="btn btn-action" onclick="alert('Feature coming soon!')">
-                Update Profile
-            </button>
-            <button class="btn btn-action" onclick="alert('Feature coming soon!')">
-                Change Password
-            </button>
-            <button class="btn btn-action" onclick="alert('Feature coming soon!')">
-                View Activity
-            </button>
-        </div>
-    </div>
-    
-    <div class="recent-activity">
-        <h2>Recent Activity</h2>
-        <ul class="activity-list">
-            <li>Logged in successfully - Just now</li>
-            <li>Session started - Today</li>
-            <!-- Dynamic activity items would go here -->
-        </ul>
+
+    <!-- Rest of your existing dashboard content -->
+    <div class="dashboard-content">
+        <!-- ... -->
     </div>
 </div>
 {% endblock %}

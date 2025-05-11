@@ -1,12 +1,12 @@
 // Firebase configuration (replace with your actual config)
 const firebaseConfig = {
-  apiKey: "AIzaSyAT9b61BDhHC9-pJaZ8wXeXlJ4QiUvN94g",
-  authDomain: "fir-pra-198de.firebaseapp.com",
-  projectId: "fir-pra-198de",
-  storageBucket: "fir-pra-198de.firebasestorage.app",
-  messagingSenderId: "605451481413",
-  appId: "1:605451481413:web:070d4b44df1e6bac474e2c",
-  measurementId: "G-GC6X2Q0BXT",
+  apiKey: "AIzaSyAti6Wr8K7d9W-7nchnLm-XM-TsoQjNJTY",
+  authDomain: "fir-pra-bec88.firebaseapp.com",
+  projectId: "fir-pra-bec88",
+  storageBucket: "fir-pra-bec88.firebasestorage.app",
+  messagingSenderId: "947761646740",
+  appId: "1:947761646740:web:6201b8b1c06a1ffd6e3881",
+  measurementId: "G-2W2BLK9QEZ"
 };
 
 // Initialize Firebase
@@ -147,4 +147,48 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+});
+
+
+
+// Password Reset Handler
+function handlePasswordReset(email) {
+  firebase.auth().sendPasswordResetEmail(email)
+      .then(() => {
+          alert('Password reset email sent!');
+      })
+      .catch(error => {
+          console.error('Reset error:', error);
+          alert(error.message);
+      });
+}
+
+// Profile Photo Upload (Example)
+function uploadProfilePhoto(file) {
+  const storageRef = firebase.storage().ref();
+  const uploadTask = storageRef.child(`profile_photos/${session.user.uid}`).put(file);
+  
+  uploadTask.on('state_changed', 
+      (snapshot) => {
+          // Progress monitoring
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log('Upload progress: ' + progress + '%');
+      },
+      (error) => {
+          alert('Upload failed: ' + error.message);
+      },
+      () => {
+          uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+              document.querySelector('input[name="photo_url"]').value = downloadURL;
+          });
+      }
+  );
+}
+
+
+// Highlight active page in navigation
+document.querySelectorAll('.nav-links a').forEach(link => {
+  if (link.href === window.location.href) {
+      link.classList.add('active-nav-link');
+  }
 });
