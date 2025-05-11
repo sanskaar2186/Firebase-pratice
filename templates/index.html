@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero">
+    <h1>Welcome to Our Authentication System</h1>
+    <p>A secure way to manage user authentication with Flask and Firebase</p>
+    
+    <div class="auth-actions">
+        {% if 'user_id' not in session %}
+            <a href="/login" class="btn btn-primary">Login</a>
+            <a href="/register" class="btn btn-secondary">Register</a>
+        {% else %}
+            <a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+            <a href="/logout" class="btn btn-secondary">Logout</a>
+        {% endif %}
+    </div>
+    
+    <div class="features">
+        <div class="feature">
+            <h3>Secure</h3>
+            <p>Uses Firebase Authentication with server-side verification</p>
+        </div>
+        <div class="feature">
+            <h3>Simple</h3>
+            <p>Clean and easy-to-understand implementation</p>
+        </div>
+        <div class="feature">
+            <h3>Scalable</h3>
+            <p>Built with Flask and Firebase for easy scaling</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
